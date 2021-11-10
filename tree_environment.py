@@ -20,7 +20,7 @@ What this will have to do:
 """
 
 class node():
-    def __init__(self, node_type, index, feature = None, split_value = None, positive_label_prob = None):
+    def __init__(self, node_type, feature = None, split_value = None, positive_label_prob = None):
         """
         Node class for the decision tree algorithm
 
@@ -34,34 +34,49 @@ class node():
         self.feature = feature
         self.split_value = split_value
         self.positive_label_prob = positive_label_prob
-        self.index = index
         self.left_child = None
         self.right_child = None
 
     def get_type(self):
         return self.type
     
-    def set_left_child(self, child_index):
-        self.left_child = child_index
+    def set_left_child(self, child):
+        self.left_child = child
 
-    def set_right_child(self, child_index):
-        self.right_child = child_index
+    def set_right_child(self, child):
+        self.right_child = child
+
+    def get_left_child(self):
+        return self.left_child
+    
+    def get_right_child(self):
+        return self.right_child
 
 class feature_node(node):
-    def __init__(self, node_type, index, feature, split_value):
-        super().__init__(node_type, index, feature = feature, split_value = split_value)
-    
+    def __init__(self, feature, split_value, categorical, node_type = 1):
+        super().__init__(node_type, feature = feature, split_value = split_value)
+        self.categorical = categorical
+
     def __call__(self, point):
-        pass
+        if self.categorical:
+            if point[super().feature] == super().split_value:
+                return super().get_left_child()
+            else:
+                return super().get_right_child()
+        else:
+            if point[super().feature] >= super().split_value:
+                return super().get_left_child()
+            else:
+                return super().get_right_child()
 
 class leaf_node(node):
-    def __init__(self, node_type, index, positive_label_prob):
+    def __init__(self, index, positive_label_prob, node_type = 0):
         super().__init__(node_type, index, positive_label_prob = positive_label_prob)
     
     def __call__(self):
         return self.positive_label_prob
 
-class tree_environmnet():
+class decision_tree_env():
     """
     Tree environment
     """
@@ -73,7 +88,8 @@ class tree_environmnet():
         
         # features selected by our controller
         self.feature_to_split = [] # note that this is also our trajectory
-        
+        self.tree = None
+
         # dataset splits
         self.dataset = dataset
         self.train = dataset[:int(3*len(dataset)/4)]
@@ -90,6 +106,8 @@ class tree_environmnet():
 
     def step(self, action):
         """
+        NOTE: this might need to be changed if depending on our model
+
         Once step of our tree environment - add action to our feature_to_split list
         
         :param action: integer indexing the feature to split on
@@ -109,6 +127,7 @@ class tree_environmnet():
         Reset environment - clear the features to split, shuffle train, valuation, test
         """
         self.feature_to_split = []
+        self.tree = None
         random.shuffle(self.dataset)
         self.train = self.dataset[:int(3*len(self.dataset)/4)]
         self.valuation = self.dataset[int(3*len(self.dataset)/4):]

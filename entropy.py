@@ -4,6 +4,12 @@ finding the best value to split on
 """
 import math
 
+def log(x):
+    if x < 1e-4:
+        return 0
+    else:
+        return math.log2(x)
+
 def entropy(sample:list):
     '''
     Calculate the entropy of a categorical r.v. Y where
@@ -29,33 +35,29 @@ def info_gain(data, feature, split_value, categorical):
     :param feature: feature that is being used to split dataset
     :param split_value: value of the split
     :param categorical: if this is a categorical variable or not
+    :return: information gain ratio for feature and split value
     '''
-    left_split = []
-    right_split = []
-    for data_point in data:
-        
-        # case when xj. >= c
-        if data_point[split[0]] >= split[1]:
-            left_split.append(data_point[-1])
-        else:
-            right_split.append(data_point[-1])
-    
-    p_x_left = len(left_split)/len(data)
-    p_x_right = len(right_split)/len(data) # this should be 1
+    left_split = None
+    right_split = None
+    if categorical:
+        left_split = data[data[:,feature] == split_value,-1]
+        right_split = data[data[:,feature] != split_value,-1]
+    else:
+        left_split = data[data[:,feature] >= split_value,-1]
+        right_split = data[data[:,feature] < split_value,-1]
 
-    # tests
-    assert (1-p_x_left)-p_x_right <= 1e-4
+    num_data_points = data.shape[0]
+    p_split_left = len(left_split)/len(num_data_points)
+    p_split_right = len(right_split)/len(num_data_points)
+    intrinsic_value = p_split_left*log(p_split_left)+p_split_right*log(p_split_right)
 
-    # if the split contains no information then return zero
-    if p_x_left == 0 or p_x_left == 1:
-        return 0.0, 0.0 # ig ratio, split_entropy
+    condition_entropy = p_split_left*entropy(left_split)+p_split_right*entropy(right_split)
+    information_gain = entropy(data[:,-1]) - (condition_entropy)
 
-    split_entropy = -(p_x_left*math.log2(p_x_left) + p_x_right*math.log2(p_x_right))
-    conditional_entropy = p_x_left*entropy(left_split) + p_x_right*entropy(right_split)
-    ig = entropy(left_split+right_split) - conditional_entropy
-
-    # calculate entropy of split
-    return ig/split_entropy, split_entropy
+    if intrinsic_value == 0:
+        return 0.0
+    else:
+        return information_gain/intrinsic_value
         
 
 def find_candidate_split(data, feature, categorical):
@@ -65,16 +67,9 @@ def find_candidate_split(data, feature, categorical):
 
     :param data: numpy.ndarray dataset
     :param feature: feature that we are splitting on
-    :param categorical: indicating numerical or categorical variable
+    :param categorical: indicating numerical (0) or categorical variable (1)
     :return: 
     '''
-
-    # only unique splits
-    # dim1_splits = list(set([(0, x_1)for x_1,_,_ in data]))
-    # dim2_splits = list(set([(1, x_2) for _,x_2,_ in data]))
-    # splits = dim1_splits + dim2_splits
-    # ig_split_ent = [info_gain(data, split) for split in splits]
-    # return splits, ig_split_ent
 
     split_values = list(set(data[:,feature]))
     igr_for_splits = [(split_val, info_gain(data, feature, split_val, categorical)) for split_val in split_values]
