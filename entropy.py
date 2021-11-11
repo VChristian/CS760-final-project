@@ -47,9 +47,9 @@ def info_gain(data, feature, split_value, categorical):
         right_split = data[data[:,feature] < split_value,-1]
 
     num_data_points = data.shape[0]
-    p_split_left = len(left_split)/len(num_data_points)
-    p_split_right = len(right_split)/len(num_data_points)
-    intrinsic_value = p_split_left*log(p_split_left)+p_split_right*log(p_split_right)
+    p_split_left = len(left_split)/num_data_points
+    p_split_right = len(right_split)/num_data_points
+    intrinsic_value = -(p_split_left*log(p_split_left)+p_split_right*log(p_split_right))
 
     condition_entropy = p_split_left*entropy(left_split)+p_split_right*entropy(right_split)
     information_gain = entropy(data[:,-1]) - (condition_entropy)

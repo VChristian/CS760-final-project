@@ -23,11 +23,11 @@ def get_data(file_name):
         flag = True
     data = pd.read_csv(file_name, header = header)
 
-    if file_name == "heart.csv":
-        df_x = data[["age", "creatinine_phosphokinase", "ejection_fraction", \
-            "platelets", "serum_creatinine", "serum_sodium", "time"]]
-        data[["age", "creatinine_phosphokinase", "ejection_fraction", \
-            "platelets", "serum_creatinine", "serum_sodium", "time"]] = (df_x-df_x.mean())/df_x.std()
+    # if file_name == "heart.csv":
+    #     df_x = data[["age", "creatinine_phosphokinase", "ejection_fraction", \
+    #         "platelets", "serum_creatinine", "serum_sodium", "time"]]
+    #     data[["age", "creatinine_phosphokinase", "ejection_fraction", \
+    #         "platelets", "serum_creatinine", "serum_sodium", "time"]] = (df_x-df_x.mean())/df_x.std()
 
     dmatrix = data.values
     data_indices = [i for i in range(dmatrix.shape[0])]
