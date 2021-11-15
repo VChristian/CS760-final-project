@@ -20,9 +20,7 @@ def entropy(sample:list):
     :param sample: target labels/outcomes of Y
     '''
     p_y_one = sum(sample)/len(sample) if len(sample) > 0 else 0
-    log_one = 0.0 if p_y_one == 0 else math.log2(p_y_one)
-    log_two = 0.0 if p_y_one == 1 else math.log2(1-p_y_one)
-    est_ent = (p_y_one*log_one + (1-p_y_one)*log_two)
+    est_ent = (p_y_one*log(p_y_one) + (1-p_y_one)*log(1-p_y_one))
     return est_ent if est_ent >= 0 else -est_ent
 
 

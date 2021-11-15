@@ -1,6 +1,8 @@
 import numpy as np
 import random 
 
+from entropy import find_candidate_split
+
 """
 What this will have to do:
     
@@ -38,18 +40,33 @@ class node():
         self.right_child = None
 
     def get_type(self):
+        """
+        Get the type of node we are working (leaf or feature)
+        """
         return self.type
     
     def set_left_child(self, child):
+        """
+        Set the left child
+        """
         self.left_child = child
 
     def set_right_child(self, child):
+        """
+        Set the right child
+        """
         self.right_child = child
 
     def get_left_child(self):
+        """
+        Get left child (return a leaf or feature)
+        """
         return self.left_child
     
     def get_right_child(self):
+        """
+        Get right child (return a leaf or feature)
+        """
         return self.right_child
 
 class feature_node(node):
@@ -80,10 +97,11 @@ class decision_tree_env():
     """
     Tree environment
     """
-    def __init__(self, tree_depth, dataset):
+    def __init__(self, tree_depth, dataset, feature_types, train_split = .75):
         """
         :param tree_depth: depth of tree
         :param dataset: this is assumed to contain our training and valuation set 
+        :param feature_types: list indicated if the variable is numeric or categorical
         """
         
         # features selected by our controller
@@ -92,8 +110,9 @@ class decision_tree_env():
 
         # dataset splits
         self.dataset = dataset
-        self.train = dataset[:int(3*len(dataset)/4)]
-        self.valuation = dataset[int(3*len(dataset)/4):]
+        self.dtrain = dataset[:int(len(dataset)*train_split)]
+        self.dvaluation = dataset[int(len(dataset)*train_split):]
+        self.feature_types = feature_types
 
         # stopping condition
         self.max_nodes = (2**tree_depth)-1
@@ -132,12 +151,93 @@ class decision_tree_env():
         self.train = self.dataset[:int(3*len(self.dataset)/4)]
         self.valuation = self.dataset[int(3*len(self.dataset)/4):]
 
-    def get_tree(self):
+    def get_tree(self, index, dataset=None):
         """
         Given a list of features created by the policy create the tree 
         """
-        def check_stop_conditions(self):
-            pass
+        def check_stop_conditions(splits):
+            """
+            Check stop conditions - currently we are using a simplified version
+            """
+            index = 0
+            for _, igr in splits:
+                if igr == 0.0:
+                    index += 1
+            if index == len(splits):
+                return True
+            else:
+                return False
+
+        def get_positive_prob(labels):
+            """
+            Return the probability of a positive class label
+            """
+            return sum(labels)/len(labels)
+        
+        if dataset is None:
+            dataset = self.dataset
+
+        # get candidate split
+        feature = self.feature_to_split[index]
+        candidate_splits = find_candidate_split(dataset, feature, self.feature_types[feature])
+
+        # case when there is nothing left to split on
+        if len(candidate_splits) == 0:
+            return None
+
+        # check if leaf conditions
+        if check_stop_conditions(candidate_splits): 
+            return leaf_node(index, get_positive_prob(dataset[:,-1]))
+
+        split_val, _ = sorted(candidate_splits, key=lambda x:x[1])[-1]
+        head = feature_node(feature, split_val, self.feature_types[feature])
+
+        left_split = None
+        right_split = None
+        if self.feature_types[feature]:
+            left_split = dataset[dataset[:,feature] == split_val,:]
+            right_split = dataset[dataset[:,feature] != split_val,:]
+        else:
+            left_split = dataset[dataset[:,feature] >= split_val,:]
+            right_split = dataset[dataset[:,feature] < split_val,:]
+
+        left_sub_tree = self.get_tree(2*index+1,left_split)
+        head.set_left_child(left_sub_tree)
+        right_sub_tree = self.get_tree(2*index+2, right_split)
+        head.set_right_child(right_sub_tree)
+
+        return head
 
     def evaluate_tree(self):
         pass
+
+def get_data(filename):
+    '''
+    Given a filename, get data
+
+    Data format is is
+
+    x11 x21 y1
+    x12 x22 y2
+    .
+    .
+    .
+    x1n x2n yn
+
+    :param filename: data file name
+    :return: list of lists [x1i, x2i, yi]
+    '''
+    data = []
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+        for line in lines:
+            datum = line.strip('\n').split(' ')
+            datum = [float(d) for d in datum]
+            data.append(datum)
+    return data
+
+if __name__ == "__main__":
+    dataset = np.asarray(get_data("data/D3leaves.txt"))
+    tree_env = decision_tree_env(3,dataset,[0,0], train_split=1)
+    tree_env.feature_to_split = [0,0,1,0,0,0,0]
+    head = tree_env.get_tree(0,dataset)
