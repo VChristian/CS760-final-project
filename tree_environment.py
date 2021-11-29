@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn.metrics import auc
 import random 
 
 from entropy import find_candidate_split
@@ -93,6 +94,23 @@ class leaf_node(node):
     def __call__(self):
         return self.positive_label_prob
 
+class tree():
+    def __init__(self, head):
+        self.head = head
+    
+    def classify(self, x, prob = True, prob_cut_off = .5):
+        start_node = self.head
+        while isinstance(start_node, feature_node) and start_node is not None:
+            start_node = start_node(x)
+        if prob:
+            return start_node()
+        else:
+            prob0 = start_node()
+            if prob0 >= prob_cut_off:
+                return 1
+            else:
+                return 0
+
 class decision_tree_env():
     """
     Tree environment
@@ -106,12 +124,12 @@ class decision_tree_env():
         
         # features selected by our controller
         self.feature_to_split = [] # note that this is also our trajectory
-        self.tree = None
+        self.constructed_tree = None
 
         # dataset splits
         self.dataset = dataset
         self.dtrain = dataset[:int(len(dataset)*train_split)]
-        self.dvaluation = dataset[int(len(dataset)*train_split):]
+        self.dvalidation = dataset[int(len(dataset)*train_split):]
         self.feature_types = feature_types
 
         # stopping condition
@@ -146,12 +164,12 @@ class decision_tree_env():
         Reset environment - clear the features to split, shuffle train, valuation, test
         """
         self.feature_to_split = []
-        self.tree = None
+        self.constructed_tree = None
         random.shuffle(self.dataset)
-        self.train = self.dataset[:int(3*len(self.dataset)/4)]
-        self.valuation = self.dataset[int(3*len(self.dataset)/4):]
+        self.dtrain = self.dataset[:int(3*len(self.dataset)/4)]
+        self.dvalidation = self.dataset[int(3*len(self.dataset)/4):]
 
-    def get_tree(self, index, dataset=None):
+    def make_tree(self, index, dataset=None):
         """
         Given a list of features created by the policy create the tree 
         """
@@ -208,8 +226,24 @@ class decision_tree_env():
 
         return head
 
-    def evaluate_tree(self):
-        pass
+    def set_tree(self, head):
+        self.constructed_tree = tree(head)
+
+    def get_tree(self):
+        return self.constructed_tree
+
+    def evaluate_tree(self, tree_object:tree):
+        """
+        Evaluate tree_object on the validation set -- report auc
+        """
+        labels = self.dvalidation[:,-1]
+        data_for_auc = []
+        for i in range(self.dvalidation.shape[0]):
+            prob_pos_label = tree_object.classify(self.dvalidation[i,:-1])
+            data_for_auc.append((labels[i], prob_pos_label))
+        data = sorted(data_for_auc, key=lambda x:x[1])
+        score = auc([prob1 for _,prob1 in data], [label for label,_ in data])
+        return score
 
 def get_data(filename):
     '''
