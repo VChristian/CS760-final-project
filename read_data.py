@@ -9,7 +9,7 @@ import random
 
 def get_data(file_name):
     """
-    Return train, test, validation set
+    Return train, test, validation indices, and categorical variables
     """
 
     # 0 - quantitative, 1 - categorical
@@ -32,8 +32,8 @@ def get_data(file_name):
     dmatrix = data.values
     data_indices = [i for i in range(dmatrix.shape[0])]
     random.shuffle(data_indices)
-    train_indices = data_indices[:int(3*len(data_indices)/4)]
-    test_indices = data_indices[int(3*len(data_indices)/4):]
+    train_indices = data_indices[:int(len(data_indices)*.75)]
+    test_indices = data_indices[int(len(data_indices)*.75):]
     if flag:
         for i in range(len(data_indices)):
             label = dmatrix[i,-1]

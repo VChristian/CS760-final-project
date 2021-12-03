@@ -1,5 +1,5 @@
 import numpy as np
-from sklearn.metrics import auc
+from sklearn.metrics import auc, roc_curve
 import random 
 
 from entropy import find_candidate_split
@@ -73,16 +73,18 @@ class node():
 class feature_node(node):
     def __init__(self, feature, split_value, categorical, node_type = 1):
         super().__init__(node_type, feature = feature, split_value = split_value)
+        self.feature = feature
+        self.split_value = split_value
         self.categorical = categorical
 
     def __call__(self, point):
         if self.categorical:
-            if point[super().feature] == super().split_value:
+            if point[self.feature] == self.split_value:
                 return super().get_left_child()
             else:
                 return super().get_right_child()
         else:
-            if point[super().feature] >= super().split_value:
+            if point[self.feature] >= self.split_value:
                 return super().get_left_child()
             else:
                 return super().get_right_child()
@@ -115,7 +117,7 @@ class decision_tree_env():
     """
     Tree environment
     """
-    def __init__(self, tree_depth, dataset, feature_types, train_split = .75):
+    def __init__(self, tree_depth, dataset, feature_types, train_split = .6666):
         """
         :param tree_depth: depth of tree
         :param dataset: this is assumed to contain our training and valuation set 
@@ -134,6 +136,10 @@ class decision_tree_env():
 
         # stopping condition
         self.max_nodes = (2**tree_depth)-1
+        self.k = tree_depth
+
+        # rewards
+        self.rewards = []
 
     def reward(self):
         """
@@ -152,7 +158,7 @@ class decision_tree_env():
             reward - reward for the current step
             done - if the algorithm is done
         """
-        self.feature_to_split.append(action)
+        self.feature_to_split.append(int(action))
         reward = 0
         done = False
         if len(self.feature_to_split) >= self.max_nodes:
@@ -165,15 +171,16 @@ class decision_tree_env():
         """
         self.feature_to_split = []
         self.constructed_tree = None
-        random.shuffle(self.dataset)
-        self.dtrain = self.dataset[:int(3*len(self.dataset)/4)]
-        self.dvalidation = self.dataset[int(3*len(self.dataset)/4):]
+        #random.shuffle(self.dataset)
+        #self.dtrain = self.dataset[:int(3*len(self.dataset)/4)]
+        #self.dvalidation = self.dataset[int(3*len(self.dataset)/4):]
+        self.rewards = []
 
     def make_tree(self, index, dataset=None):
         """
         Given a list of features created by the policy create the tree 
         """
-        def check_stop_conditions(splits):
+        def check_stop_conditions_igr(splits):
             """
             Check stop conditions - currently we are using a simplified version
             """
@@ -182,6 +189,14 @@ class decision_tree_env():
                 if igr == 0.0:
                     index += 1
             if index == len(splits):
+                return True
+            else:
+                return False
+
+        def check_stop_condition_leaf(index):
+            if self.max_nodes == 1:
+                return True
+            elif index < self.max_nodes and index >= self.max_nodes-(2**(self.k-1)):
                 return True
             else:
                 return False
@@ -195,6 +210,9 @@ class decision_tree_env():
         if dataset is None:
             dataset = self.dataset
 
+        if check_stop_condition_leaf(index):
+            return leaf_node(index, get_positive_prob(dataset[:,-1]))
+
         # get candidate split
         feature = self.feature_to_split[index]
         candidate_splits = find_candidate_split(dataset, feature, self.feature_types[feature])
@@ -204,7 +222,7 @@ class decision_tree_env():
             return None
 
         # check if leaf conditions
-        if check_stop_conditions(candidate_splits): 
+        if check_stop_conditions_igr(candidate_splits): 
             return leaf_node(index, get_positive_prob(dataset[:,-1]))
 
         split_val, _ = sorted(candidate_splits, key=lambda x:x[1])[-1]
@@ -219,9 +237,9 @@ class decision_tree_env():
             left_split = dataset[dataset[:,feature] >= split_val,:]
             right_split = dataset[dataset[:,feature] < split_val,:]
 
-        left_sub_tree = self.get_tree(2*index+1,left_split)
+        left_sub_tree = self.make_tree(2*index+1,left_split)
         head.set_left_child(left_sub_tree)
-        right_sub_tree = self.get_tree(2*index+2, right_split)
+        right_sub_tree = self.make_tree(2*index+2, right_split)
         head.set_right_child(right_sub_tree)
 
         return head
@@ -232,17 +250,23 @@ class decision_tree_env():
     def get_tree(self):
         return self.constructed_tree
 
-    def evaluate_tree(self, tree_object:tree):
+    def evaluate_tree(self, tree_object:tree, dataset = None):
         """
         Evaluate tree_object on the validation set -- report auc
         """
-        labels = self.dvalidation[:,-1]
+        if dataset is None:
+            dataset = self.dvalidation
+
+        labels = dataset[:,-1]
         data_for_auc = []
-        for i in range(self.dvalidation.shape[0]):
-            prob_pos_label = tree_object.classify(self.dvalidation[i,:-1])
+        for i in range(dataset.shape[0]):
+            prob_pos_label = tree_object.classify(dataset[i,:-1])
             data_for_auc.append((labels[i], prob_pos_label))
         data = sorted(data_for_auc, key=lambda x:x[1])
-        score = auc([prob1 for _,prob1 in data], [label for label,_ in data])
+        y = [label for label,_ in data]
+        pred = [prob1 for _,prob1 in data]
+        fpr, tpr, thresholds = roc_curve(y, pred, pos_label=1)
+        score = auc(fpr, tpr)
         return score
 
 def get_data(filename):
@@ -271,7 +295,9 @@ def get_data(filename):
     return data
 
 if __name__ == "__main__":
-    dataset = np.asarray(get_data("data/D3leaves.txt"))
-    tree_env = decision_tree_env(3,dataset,[0,0], train_split=1)
-    tree_env.feature_to_split = [0,0,1,0,0,0,0]
-    head = tree_env.get_tree(0,dataset)
+    dataset = np.asarray(get_data("data/D1.txt"))
+    tree_env = decision_tree_env(2,dataset,[0,0], train_split=1)
+    tree_env.feature_to_split = [1,0,1]
+    head = tree_env.make_tree(0,dataset)
+    tree_env.set_tree(head)
+    print(tree_env)
