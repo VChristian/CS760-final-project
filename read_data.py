@@ -5,6 +5,7 @@ Output should be a matrix of elements
 """
 
 import pandas as pd
+import numpy as np
 import random
 
 def get_data(file_name):
@@ -30,6 +31,8 @@ def get_data(file_name):
     #         "platelets", "serum_creatinine", "serum_sodium", "time"]] = (df_x-df_x.mean())/df_x.std()
 
     dmatrix = data.values
+    if flag:
+        dmatrix = np.array([arr for arr in dmatrix if '?' not in arr and 'unknown' not in arr],dtype=float)
     data_indices = [i for i in range(dmatrix.shape[0])]
     random.shuffle(data_indices)
     train_indices = data_indices[:int(len(data_indices)*.75)]
